@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>BINGO NEXUS — Sistema de Bingo Móvil</title>
+    
+    <!-- PWA & Mobile Meta Tags -->
+    <meta name="description" content="Asistente digital profesional para jugar al bingo con cartones físicos reales. Detección automática de patrones, 100% offline y guardado seguro." />
+    <meta name="theme-color" content="#090a0f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bingo Nexus" />
+    <link rel="manifest" href="./manifest.json" />
+
+    <!-- Preconnect Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script type="module" crossorigin src="./assets/index-CgBmDDFk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B7DEklzR.css">
+  </head>
+  <body class="bg-[#090a0f] text-slate-100 font-sans">
+    <div id="root"></div>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then((reg) => console.log('BINGO NEXUS SW registrado con éxito:', reg.scope))
+            .catch((err) => console.warn('BINGO NEXUS SW fallo de registro:', err));
+        });
+      }
+    </script>
+  </body>
+</html>
