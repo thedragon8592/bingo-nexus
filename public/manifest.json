@@ -1,0 +1,21 @@
+{
+  "name": "BINGO NEXUS — Asistente Móvil de Bingo",
+  "short_name": "Bingo Nexus",
+  "description": "Asistente digital profesional para jugar al bingo con cartones físicos reales. Detección automática de patrones, 100% offline y guardado seguro antiapagón.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090a0f",
+  "theme_color": "#090a0f",
+  "lang": "es",
+  "categories": ["games", "utilities"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
