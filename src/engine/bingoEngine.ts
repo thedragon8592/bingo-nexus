@@ -124,10 +124,8 @@ export function createBlankCard(mode: GameMode, name = 'Mi Cartón'): BingoCard 
  * Initializes a new clean GameState
  */
 export function createInitialGameState(mode: GameMode = '75-ball', initialCardName = 'Cartón 1'): GameState {
-  const defaultPatterns = mode === '75-ball' ? getBuiltIn75Patterns() : getBuiltIn90Patterns();
-  const activePatternIds = defaultPatterns
-    .filter((p) => p.isActive)
-    .map((p) => p.id);
+  // Default to a single clear objective (Cartón Lleno) to prevent unexpected surprise wins
+  const activePatternIds = mode === '75-ball' ? ['full-card'] : ['90-bingo'];
 
   const initialCard = createBlankCard(mode, initialCardName);
 
@@ -482,3 +480,52 @@ export function acknowledgeVictory(state: GameState, victoryId: string): GameSta
     updatedAt: Date.now(),
   };
 }
+
+/**
+ * Sets a single target pattern as the exclusive objective for the current round,
+ * preventing any unexpected surprise wins from unselected patterns.
+ */
+export function setSingleObjective(state: GameState, patternId: string): GameState {
+  return {
+    ...state,
+    activePatternIds: [patternId],
+    updatedAt: Date.now(),
+  };
+}
+
+/**
+ * Creates and immediately activates a custom mask of cells as the round objective.
+ * The player can tap the exact cells that count in this round.
+ */
+export function setCustomCellsObjective(
+  state: GameState,
+  name: string,
+  mask: boolean[][],
+  freeCounts = true,
+  allowRotations = false
+): GameState {
+  const patternId = generateId('target_pattern');
+  const count = mask.flat().filter(Boolean).length;
+  const newPattern: WinningPattern = {
+    id: patternId,
+    name: name.trim() || `Figura de ${count} casillas`,
+    category: 'custom',
+    description: `Casillas seleccionadas por el jugador (${count} casillas)`,
+    rows: mask.length,
+    cols: mask[0].length,
+    mask,
+    freeCounts,
+    allowRotations,
+    isActive: true,
+    isCustom: true,
+    createdAt: Date.now(),
+  };
+
+  return {
+    ...state,
+    customPatterns: [...state.customPatterns, newPattern],
+    activePatternIds: [patternId],
+    updatedAt: Date.now(),
+  };
+}
+

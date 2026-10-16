@@ -15,6 +15,7 @@ interface CardGridProps {
   card: BingoCard;
   matches: PatternMatchResult[];
   winningCoords?: Set<string>; // "r_c" keys
+  targetCoords?: Set<string>; // "r_c" keys that count for the active round objective
   onToggleManualMark: (cardId: string, row: number, col: number) => void;
   onEditCard: (card: BingoCard) => void;
   onDuplicateCard: (card: BingoCard) => void;
@@ -25,6 +26,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
   card,
   matches,
   winningCoords = new Set(),
+  targetCoords,
   onToggleManualMark,
   onEditCard,
   onDuplicateCard,
@@ -101,31 +103,63 @@ export const CardGrid: React.FC<CardGridProps> = ({
 
       {/* Progress Bar towards closest objective */}
       {closestPattern && (
-        <div className="mb-3 px-2.5 py-1.5 rounded-xl bg-[#0c0d13] border border-[#212433] flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-slate-300 truncate font-medium">
+        <div className="mb-3 px-3 py-2 rounded-xl bg-[#0c0d13] border border-amber-500/25 flex flex-col gap-1.5 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-slate-300 truncate font-medium">
+                {closestPattern.isCompleted ? (
+                  <span className="text-amber-400 font-bold">
+                    ¡{closestPattern.patternName} Completado!
+                  </span>
+                ) : (
+                  <>
+                    Objetivo: <strong className="text-amber-400 font-bold">{closestPattern.patternName}</strong>
+                  </>
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
               {closestPattern.isCompleted ? (
-                <span className="text-amber-400 font-bold">
-                  ¡{closestPattern.patternName} Completado!
+                <span className="font-black font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  ¡BINGO!
                 </span>
               ) : (
-                <>
-                  Objetivo: <strong className="text-white">{closestPattern.patternName}</strong>
-                </>
+                <span className="font-black font-mono text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                  Faltan {closestPattern.missingCount}
+                </span>
               )}
-            </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {closestPattern.isCompleted ? (
-              <span className="font-bold font-mono text-emerald-400">100%</span>
-            ) : (
-              <span className="font-bold font-mono text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
-                Faltan {closestPattern.missingCount}
-              </span>
-            )}
-          </div>
+          {/* Missing Numbers List for this card */}
+          {!closestPattern.isCompleted && targetCoords && (
+            <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400 pt-1 border-t border-[#1c1f2e]">
+              <span className="text-amber-400/90 font-bold">Números que necesitas:</span>
+              {card.cells.flatMap((rList, r) =>
+                rList.flatMap((cItem, c) => {
+                  if (
+                    targetCoords.has(`${r}_${c}`) &&
+                    cItem.value !== null &&
+                    !cItem.isAnnouncedMarked &&
+                    !cItem.isManualMarked &&
+                    !cItem.isFree
+                  ) {
+                    return [cItem.value];
+                  }
+                  return [];
+                })
+              ).map((n) => (
+                <span
+                  key={n}
+                  className="px-1.5 py-0.2 rounded bg-[#1e2336] text-amber-300 font-mono font-bold border border-amber-500/30"
+                >
+                  {n}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -170,6 +204,7 @@ export const CardGrid: React.FC<CardGridProps> = ({
           rowList.map((cell, cIdx) => {
             const coordKey = `${rIdx}_${cIdx}`;
             const isWinningCell = winningCoords.has(coordKey);
+            const isTargetCell = targetCoords ? targetCoords.has(coordKey) : true;
 
             // In 90-ball, empty cells
             if (card.mode === '90-ball' && cell.value === null) {
@@ -194,7 +229,9 @@ export const CardGrid: React.FC<CardGridProps> = ({
                   className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all border font-bold text-center relative ${
                     isWinningCell
                       ? 'bg-amber-400 text-black border-yellow-200 ring-2 ring-yellow-400 shadow-[0_0_15px_rgba(251,191,36,0.7)] animate-pulse'
-                      : 'bg-gradient-to-br from-orange-600/40 to-amber-600/30 text-amber-300 border-orange-500/50'
+                      : isTargetCell
+                      ? 'bg-gradient-to-br from-orange-600/40 to-amber-600/30 text-amber-300 border-amber-500/50 ring-1 ring-amber-500/30'
+                      : 'bg-[#12141d] text-slate-500 border-[#222533] opacity-60'
                   }`}
                 >
                   <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" />
@@ -211,11 +248,13 @@ export const CardGrid: React.FC<CardGridProps> = ({
                 type="button"
                 onClick={() => onToggleManualMark(card.id, rIdx, cIdx)}
                 title={
-                  cell.isAnnouncedMarked
-                    ? `Número ${cell.value} cantado por el sistema`
+                  !isTargetCell
+                    ? `Número ${cell.value} (No forma parte de la figura activa)`
+                    : cell.isAnnouncedMarked
+                    ? `Número ${cell.value} cantado por el sistema (¡Vale para ganar!)`
                     : cell.isManualMarked
                     ? `Número ${cell.value} marcado manualmente`
-                    : `Número ${cell.value}. Clic para marcar/desmarcar`
+                    : `Número ${cell.value} (Casilla que vale en esta ronda)`
                 }
                 className={`aspect-square rounded-xl flex items-center justify-center font-mono font-bold text-lg sm:text-2xl transition-all relative border active:scale-95 ${
                   isWinningCell
@@ -224,10 +263,20 @@ export const CardGrid: React.FC<CardGridProps> = ({
                     ? 'bg-gradient-to-br from-orange-500 to-amber-600 text-black border-orange-400 font-black shadow-[0_0_10px_rgba(255,107,0,0.35)]'
                     : cell.isManualMarked
                     ? 'bg-cyan-950/70 text-cyan-300 border-cyan-500/60 ring-1 ring-cyan-500/40'
-                    : 'bg-[#171a26] text-white hover:bg-[#202434] border-[#2b3044]'
+                    : isTargetCell
+                    ? 'bg-[#181c2b] text-amber-200 border-amber-500/40 hover:border-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.15)]'
+                    : 'bg-[#0f1118] text-slate-500 border-[#1c1f2b] opacity-60'
                 }`}
               >
                 {cell.value ?? '--'}
+
+                {/* Target cell marker dot */}
+                {isTargetCell && targetCoords && !cell.isAnnouncedMarked && !cell.isManualMarked && (
+                  <span
+                    className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.8)]"
+                    title="Casilla que vale"
+                  />
+                )}
 
                 {/* Badge if marked manually */}
                 {cell.isManualMarked && !cell.isAnnouncedMarked && (

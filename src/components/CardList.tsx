@@ -7,6 +7,7 @@ interface CardListProps {
   cards: BingoCard[];
   matches: PatternMatchResult[];
   winningCoordsMap: Record<string, Set<string>>; // cardId -> Set of "r_c"
+  targetCoords?: Set<string>; // active round target cells
   onToggleManualMark: (cardId: string, row: number, col: number) => void;
   onEditCard: (card: BingoCard) => void;
   onDuplicateCard: (card: BingoCard) => void;
@@ -18,6 +19,7 @@ export const CardList: React.FC<CardListProps> = ({
   cards,
   matches,
   winningCoordsMap,
+  targetCoords,
   onToggleManualMark,
   onEditCard,
   onDuplicateCard,
@@ -130,6 +132,7 @@ export const CardList: React.FC<CardListProps> = ({
           card={currentCard}
           matches={matches}
           winningCoords={winningCoordsMap[currentCard.id]}
+          targetCoords={targetCoords}
           onToggleManualMark={onToggleManualMark}
           onEditCard={onEditCard}
           onDuplicateCard={onDuplicateCard}
@@ -145,6 +148,7 @@ export const CardList: React.FC<CardListProps> = ({
               card={c}
               matches={matches}
               winningCoords={winningCoordsMap[c.id]}
+              targetCoords={targetCoords}
               onToggleManualMark={onToggleManualMark}
               onEditCard={onEditCard}
               onDuplicateCard={onDuplicateCard}

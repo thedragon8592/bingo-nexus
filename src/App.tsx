@@ -11,6 +11,9 @@ import {
   evaluateAllActivePatterns,
   acknowledgeVictory,
   generateId,
+  getActivePatterns,
+  setSingleObjective,
+  setCustomCellsObjective,
 } from './engine/bingoEngine';
 import {
   saveGameState,
@@ -25,12 +28,13 @@ import { vibrationManager } from './engine/vibration';
 
 // UI Components
 import { Header } from './components/Header';
+import { RoundObjectiveCard } from './components/RoundObjectiveCard';
+import { TargetObjectiveSelectorModal } from './components/TargetObjectiveSelectorModal';
 import { Keypad } from './components/Keypad';
 import { AnnouncedHistory } from './components/AnnouncedHistory';
 import { CardList } from './components/CardList';
 import { CardEditorModal } from './components/CardEditorModal';
 import { PatternBuilderModal } from './components/PatternBuilderModal';
-import { ActivePatternsModal } from './components/ActivePatternsModal';
 import { VictoryModal } from './components/VictoryModal';
 import { BackupModal } from './components/BackupModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -47,7 +51,7 @@ export const App: React.FC = () => {
   const [editingCard, setEditingCard] = useState<BingoCard | null>(null);
   const [isCardEditorOpen, setIsCardEditorOpen] = useState(false);
   const [isPatternBuilderOpen, setIsPatternBuilderOpen] = useState(false);
-  const [isActivePatternsOpen, setIsActivePatternsOpen] = useState(false);
+  const [isObjectiveSelectorOpen, setIsObjectiveSelectorOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
@@ -115,12 +119,32 @@ export const App: React.FC = () => {
     document.body.classList.add(`font-scale-${gameState.settings.fontSize}`);
   }, [gameState.settings]);
 
-  // 5. Evaluate all active patterns across all cards
+  // 5. Active Patterns & Objective Mask
+  const activePatterns = useMemo(() => {
+    return getActivePatterns(gameState);
+  }, [gameState]);
+
+  // Coordinates that count for the active round objective
+  const targetCoords = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of activePatterns) {
+      for (let r = 0; r < p.rows; r++) {
+        for (let c = 0; c < p.cols; c++) {
+          if (p.mask[r]?.[c]) {
+            set.add(`${r}_${c}`);
+          }
+        }
+      }
+    }
+    return set;
+  }, [activePatterns]);
+
+  // 6. Evaluate all active patterns across all cards
   const patternMatches = useMemo(() => {
     return evaluateAllActivePatterns(gameState);
   }, [gameState]);
 
-  // 6. Map of winning coords for glowing highlights
+  // 7. Map of winning coords for glowing highlights
   const winningCoordsMap = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     for (const card of gameState.cards) {
@@ -184,6 +208,19 @@ export const App: React.FC = () => {
     setGameState((prev) => toggleManualMark(prev, cardId, row, col));
   }, []);
 
+  // Objective & Patterns Selection Handlers
+  const handleSelectSingleObjective = useCallback((patternId: string) => {
+    soundEffects.playClick();
+    vibrationManager.tap();
+    setGameState((prev) => setSingleObjective(prev, patternId));
+  }, []);
+
+  const handleSetCustomCellsObjective = useCallback((name: string, mask: boolean[][], freeCounts: boolean) => {
+    soundEffects.playClick();
+    vibrationManager.tap();
+    setGameState((prev) => setCustomCellsObjective(prev, name, mask, freeCounts));
+  }, []);
+
   // Card Management
   const handleSaveCard = useCallback(async (savedCard: BingoCard, saveToLibrary: boolean) => {
     setGameState((prev) => {
@@ -242,7 +279,7 @@ export const App: React.FC = () => {
     });
   }, []);
 
-  // Custom Patterns
+  // Custom Patterns in Builder
   const handleSavePattern = useCallback((pattern: WinningPattern) => {
     setGameState((prev) => {
       const exists = prev.customPatterns.some((p) => p.id === pattern.id);
@@ -252,9 +289,7 @@ export const App: React.FC = () => {
 
       saveCustomPatterns(updatedCustom);
 
-      const activeIds = prev.activePatternIds.includes(pattern.id)
-        ? prev.activePatternIds
-        : [...prev.activePatternIds, pattern.id];
+      const activeIds = [pattern.id]; // Exclusively set as round objective
 
       return {
         ...prev,
@@ -276,28 +311,6 @@ export const App: React.FC = () => {
         updatedAt: Date.now(),
       };
     });
-  }, []);
-
-  const handleTogglePattern = useCallback((patternId: string) => {
-    setGameState((prev) => {
-      const isActive = prev.activePatternIds.includes(patternId);
-      const updated = isActive
-        ? prev.activePatternIds.filter((id) => id !== patternId)
-        : [...prev.activePatternIds, patternId];
-      return {
-        ...prev,
-        activePatternIds: updated,
-        updatedAt: Date.now(),
-      };
-    });
-  }, []);
-
-  const handleSetAllPatterns = useCallback((patternIds: string[]) => {
-    setGameState((prev) => ({
-      ...prev,
-      activePatternIds: patternIds,
-      updatedAt: Date.now(),
-    }));
   }, []);
 
   // Reset Game Round
@@ -397,7 +410,7 @@ export const App: React.FC = () => {
         onToggleSound={() => handleUpdateSettings({ soundEnabled: !gameState.settings.soundEnabled })}
         onToggleVibration={() => handleUpdateSettings({ vibrationEnabled: !gameState.settings.vibrationEnabled })}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenPatterns={() => setIsActivePatternsOpen(true)}
+        onOpenPatterns={() => setIsObjectiveSelectorOpen(true)}
         onOpenBackup={() => setIsBackupOpen(true)}
         onOpenTutorial={() => setIsTutorialOpen(true)}
         onResetGame={() => setIsResetConfirmOpen(true)}
@@ -405,7 +418,15 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl mx-auto w-full p-2.5 sm:p-4 flex flex-col gap-4">
-        {/* Top: Ergonomic Keypad and Caller History */}
+        {/* TOP: ACTIVE ROUND OBJECTIVE (Prominently shows what figure is in play and lets user pick/paint cells) */}
+        <RoundObjectiveCard
+          mode={gameState.mode}
+          activePatterns={activePatterns}
+          onOpenSelector={() => setIsObjectiveSelectorOpen(true)}
+          onQuickSelectPattern={handleSelectSingleObjective}
+        />
+
+        {/* Ergonomic Keypad and Caller History */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start">
           {/* Keypad */}
           <Keypad
@@ -426,11 +447,12 @@ export const App: React.FC = () => {
           />
         </div>
 
-        {/* Bottom: Physical Cards Display & Management */}
+        {/* Physical Cards Display & Management */}
         <CardList
           cards={gameState.cards}
           matches={patternMatches}
           winningCoordsMap={winningCoordsMap}
+          targetCoords={targetCoords}
           onToggleManualMark={handleToggleManualMark}
           onEditCard={(c) => {
             setEditingCard(c);
@@ -465,27 +487,24 @@ export const App: React.FC = () => {
         />
       )}
 
+      {/* Interactive Objective & Cell Selector Modal */}
+      {isObjectiveSelectorOpen && (
+        <TargetObjectiveSelectorModal
+          mode={gameState.mode}
+          activePatternIds={gameState.activePatternIds}
+          customPatterns={gameState.customPatterns}
+          onSelectSinglePattern={handleSelectSingleObjective}
+          onSetCustomCells={handleSetCustomCellsObjective}
+          onClose={() => setIsObjectiveSelectorOpen(false)}
+        />
+      )}
+
       {isPatternBuilderOpen && (
         <PatternBuilderModal
           customPatterns={gameState.customPatterns}
           onSavePattern={handleSavePattern}
           onDeletePattern={handleDeletePattern}
           onClose={() => setIsPatternBuilderOpen(false)}
-        />
-      )}
-
-      {isActivePatternsOpen && (
-        <ActivePatternsModal
-          mode={gameState.mode}
-          activePatternIds={gameState.activePatternIds}
-          customPatterns={gameState.customPatterns}
-          onTogglePattern={handleTogglePattern}
-          onSetAllPatterns={handleSetAllPatterns}
-          onOpenPatternBuilder={() => {
-            setIsActivePatternsOpen(false);
-            setIsPatternBuilderOpen(true);
-          }}
-          onClose={() => setIsActivePatternsOpen(false)}
         />
       )}
 
